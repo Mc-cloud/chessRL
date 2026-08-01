@@ -2,7 +2,8 @@
 __pycache__/
 *.py[codz]
 *$py.class
-
+data_CNN/*
+lichess_bot/config.yml
 # C extensions
 *.so
 
