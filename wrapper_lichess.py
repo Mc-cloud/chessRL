@@ -3,7 +3,7 @@ import chess
 
 from agents.alphabeta_agent import AlphaBeta_agent
 
-DEPTH = 4
+DEPTH = 99
 
 agent = AlphaBeta_agent(depth=DEPTH)
 board = chess.Board()
@@ -69,6 +69,7 @@ def main():
 
         elif cmd == "ucinewgame":
             board = chess.Board()
+            agent.transposition_table.clear()
 
         elif cmd == "setoption":
             pass  # ignoré, notre moteur n'a pas besoin de ces réglages
@@ -77,7 +78,25 @@ def main():
             handle_position(parts)
 
         elif cmd == "go":
-            move = agent.get_move(board)
+            wtime = btime = winc = binc = 0.0
+
+            if "wtime" in parts :
+                wtime = int(parts[parts.index("wtime") + 1]) / 1000.0
+            if "btime" in parts:
+                btime = int(parts[parts.index("btime") + 1]) / 1000.0
+            if "winc" in parts:
+                winc = int(parts[parts.index("winc") + 1]) / 1000.0
+            if "binc" in parts:
+                binc = int(parts[parts.index("binc") + 1]) / 1000.0
+
+            if board.turn == chess.WHITE:
+                time_left = wtime if wtime > 0 else None
+                increment = winc
+            else:
+                time_left = btime if btime > 0 else None
+                increment = binc
+
+            move = agent.get_move(board, time_left = time_left, increment = increment)
             send(f"bestmove {move.uci()}")
 
         elif cmd == "quit":

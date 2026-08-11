@@ -33,7 +33,7 @@ class Game:
         if display:
             print("\n🏁 PARTIE TERMINÉE 🏁")
             print(board)
-            print(f"Résultat : {board.result()} ({self._get_outcome_message(board)})")
+            print(f"Résultat : {board.result()} ({self._get_outcome(board)})")
 
         return board.result()
 
