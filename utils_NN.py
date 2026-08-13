@@ -12,7 +12,6 @@ from functools import partial
 # ---------------- Vocabulaire des coups ----------------
 
 def create_move_vocab():
-    """Crée les dictionnaires de traduction entre les coups UCI et les index du réseau."""
     uci_to_idx = {}
     idx_to_uci = {}
     idx = 0
@@ -24,21 +23,22 @@ def create_move_vocab():
 
             from_rank = chess.square_rank(from_sq)
             to_rank = chess.square_rank(to_sq)
-
-            is_promotion = (from_rank == 6 and to_rank == 7) or (from_rank == 1 and to_rank == 0)
             file_diff = abs(chess.square_file(from_sq) - chess.square_file(to_sq))
 
-            if is_promotion and file_diff <= 1:
+            is_promotion_square_pattern = (
+                (from_rank == 6 and to_rank == 7) or (from_rank == 1 and to_rank == 0)
+            )
+            move_uci = chess.SQUARE_NAMES[from_sq] + chess.SQUARE_NAMES[to_sq]
+            uci_to_idx[move_uci] = idx
+            idx_to_uci[idx] = move_uci
+            idx += 1
+
+            if is_promotion_square_pattern and file_diff <= 1:
                 for promo in ['q', 'r', 'b', 'n']:
-                    move_uci = chess.SQUARE_NAMES[from_sq] + chess.SQUARE_NAMES[to_sq] + promo
-                    uci_to_idx[move_uci] = idx
-                    idx_to_uci[idx] = move_uci
+                    promo_uci = chess.SQUARE_NAMES[from_sq] + chess.SQUARE_NAMES[to_sq] + promo
+                    uci_to_idx[promo_uci] = idx
+                    idx_to_uci[idx] = promo_uci
                     idx += 1
-            else:
-                move_uci = chess.SQUARE_NAMES[from_sq] + chess.SQUARE_NAMES[to_sq]
-                uci_to_idx[move_uci] = idx
-                idx_to_uci[idx] = move_uci
-                idx += 1
 
     return uci_to_idx, idx_to_uci
 
@@ -136,8 +136,25 @@ class MCTS:
         self.c = c
         self.n_simulations = n_simulations
 
-    def search(self, initial_state: chess.Board):
+    def search(self, initial_state: chess.Board, add_noise = False, dirichlet_alpha = 0.3, noise_eps = 0.25):
         root = Node(state=initial_state)
+
+        if not root.state.is_game_over():
+            action_probs, _ = self.nn.predict(root.state)
+            legal_moves = [m.uci() for m in root.state.legal_moves]
+            legal_probs = {m: prob for m, prob in action_probs.items() if m in legal_moves}
+            sum_probs = sum(legal_probs.values())
+            if sum_probs > 0:
+                legal_probs = {m: prob / sum_probs for m, prob in legal_probs.items()}
+            else:
+                legal_probs = {m: 1.0 / len(legal_moves) for m in legal_moves}
+
+            if add_noise:
+                noise = np.random.dirichlet([dirichlet_alpha] * len(legal_probs))
+                for (move, p), n in zip(list(legal_probs.items()), noise):
+                    legal_probs[move] = (1 - noise_eps) * p + noise_eps * n
+
+            root.expand(legal_probs)
 
         for _ in range(self.n_simulations):
             node = root
@@ -241,7 +258,7 @@ class CNN(nn.Module):
 
 # ---------------- Self-play ----------------
 
-def play_one_game(neural_net, num_simulations=800, temp_threshold=15):
+def play_one_game(neural_net, num_simulations=100, temp_threshold=15):
     board = chess.Board()
     memory = []
     move_count = 0
@@ -251,7 +268,7 @@ def play_one_game(neural_net, num_simulations=800, temp_threshold=15):
 
     while not board.is_game_over():
         move_count += 1
-        policy_dict = mcts.search(board)
+        policy_dict = mcts.search(board, add_noise=True)
         action_size = len(UCI_TO_IDX)
         policy_vector = np.zeros(action_size, dtype=np.float32)
 
