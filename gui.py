@@ -8,6 +8,12 @@ from images import *
 # Ajustement du chemin pour importer l'agent depuis le dossier courant ou parent
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from agents.alphabeta_agent import AlphaBeta_agent
+from agents.agent_nn import NN_Agent
+
+###########
+agent = AlphaBeta_agent(depth=4)  # Vous pouvez changer l'agent ici
+###########
+
 
 sq_size = 600 // 8
 
@@ -40,8 +46,6 @@ def draw_board(screen, board):
                 screen.blit(symbole_to_image(piece), (c * sq_size, r * sq_size))
 
 def ia_worker(queue_requetes, queue_reponses):
-    agent = AlphaBeta_agent(depth=4)
-    
     while True:
         requete = queue_requetes.get() 
         

@@ -479,6 +479,17 @@ class AlphaBeta_agent(Base_agent):
                 "best_move" : best_move_found
             }
         return result
+
+
+    # Ajout d'une détection de mat en 1 car l'algorithme ne préfère pas forcément le mat en 1 à un mat en 2, les deux ayant 999 en valeur.
+    def _checkmate_in_one(self, board : chess.Board):
+        for move in board.legal_moves:
+            board.push(move)
+            if board.is_checkmate():
+                board.pop()
+                return move
+            board.pop()
+
     
     def get_move(self, board : chess.Board, time_left : float = None, increment : float = 0.0):
         if time_left is not None :
@@ -545,5 +556,11 @@ class AlphaBeta_agent(Base_agent):
 
         if best_move_overall is None :
             best_move_overall = list(board.legal_moves)[0]
+
+        #Ajout d'une vérification de mat en 1 pour s'assurer que l'IA ne rate pas un mat immédiat
+        checkmate_move = self._checkmate_in_one(board)
+        if checkmate_move is not None:
+            print("✅ Mat en 1 détecté !", file=sys.stderr)
+            best_move_overall = checkmate_move
 
         return best_move_overall
