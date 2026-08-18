@@ -42,7 +42,7 @@ def draw_board(screen, board):
 
 def ia_worker(queue_requetes, queue_reponses):
     ###########
-    agent = AlphaBeta_agent(depth=4)  # Vous pouvez changer l'agent ici
+    agent = AlphaBeta_agent(depth=99)  # Vous pouvez changer l'agent ici
     ###########
 
     while True:

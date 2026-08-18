@@ -195,6 +195,18 @@ class AlphaBeta_agent(Base_agent):
 
         self.transposition_table = {}
 
+    #pour éviter les zugzwang dans le null-move pruning(voir alphabeta), 
+    # on regarde si il reste des pièces 
+    #(il y a toujours bcp de cas où il y aura de zugzwang, à voir 
+    # si c'est intéressant de le garder)
+    def _has_non_pawn_material(self, board : chess.Board, color : bool):
+        return bool(
+            board.pieces_mask(chess.KNIGHT, color) |
+            board.pieces_mask(chess.BISHOP, color) |
+            board.pieces_mask(chess.ROOK, color) |
+            board.pieces_mask(chess.QUEEN, color)
+        )
+
     def _evaluate_board(self, board : chess.Board):
         if board.is_checkmate():
             return -99999 if board.turn else 99999
@@ -247,13 +259,11 @@ class AlphaBeta_agent(Base_agent):
                     enemy_pawns = board.pieces_mask(chess.PAWN, not piece.color)
                     
                     # pions doublés
-                    # Y a-t-il plus d'un pion de notre couleur sur cette colonne ?
                     if (friendly_pawns & file_mask).bit_count() > 1:
                         struct_mg -= 11
                         struct_eg -= 11
                         
                     # pions isolés
-                    # Aucun pion de notre couleur sur les colonnes de gauche ou de droite ?
                     if not (friendly_pawns & adj_mask):
                         struct_mg -= 5
                         struct_eg -= 15
@@ -424,7 +434,21 @@ class AlphaBeta_agent(Base_agent):
         elif tt_entry is not None :
             tt_move = tt_entry.get("best_move")
 
-        if depth == 0 or board.is_game_over():
+        #l'idée c'est de se demander si on passe son tour, est ce que la position est toujours bonne
+        # si elle l'est alors ça nous permet d'élaguer plus tôt
+        R = 3
+        NULL_MOVE_MIN_DEPTH = 3
+        if (depth >= NULL_MOVE_MIN_DEPTH and not board.is_check() and self._has_non_pawn_material(board, board.turn) and beta < math.inf):
+            board.push(chess.Move.null())
+            null_score = self._alphabeta(board, depth - 1 - R,alpha, beta, not maximizing_player)
+            board.pop()
+
+            if maximizing_player and null_score >= beta:
+                return beta
+            if not maximizing_player and null_score <= alpha:
+                return alpha
+        
+        if depth <= 0 or board.is_game_over():
             return self._quiescence(board, alpha, beta, maximizing_player)
 
         best_move_found = None
@@ -496,7 +520,7 @@ class AlphaBeta_agent(Base_agent):
             self.time_limit = (time_left / 40.0) + (increment / 2.0)
             self.time_limit = min(self.time_limit, max(0.1, time_left - 0.5))
         else :
-            self.time_limit = 5.0
+            self.time_limit = 10.0
 
         self.start_time = time.time()
         self.nodes = 0
@@ -504,6 +528,8 @@ class AlphaBeta_agent(Base_agent):
         best_move_overall = None
         best_score_overall = 0 
         is_maximising = (board.turn == chess.WHITE)
+
+        original_stack_len = len(board.move_stack)
 
         try :
             for current_depth in range(1, self.depth + 1):
@@ -553,7 +579,8 @@ class AlphaBeta_agent(Base_agent):
                 print(f"✅ [Profondeur {current_depth}] terminée en {elapsed_time:.2f}s | Éval: {formatted_score} | Coup: {best_move_overall}", file=sys.stderr)
         except TimeoutException:
             print(f'{self.time_limit} depasse', file = sys.stderr)
-
+            while len(board.move_stack) > original_stack_len :
+                board.pop()
         if best_move_overall is None :
             best_move_overall = list(board.legal_moves)[0]
 
